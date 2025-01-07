@@ -1309,6 +1309,7 @@ we put it to free list to be used.
 @param[in,out]  buf_pool        buffer pool instance
 @return the free control block, in state BUF_BLOCK_READY_FOR_USE */
 buf_block_t *buf_LRU_get_free_block(buf_pool_t *buf_pool) {
+  // printf("requesting free block... ");
   buf_block_t *block = nullptr;
   bool freed = false;
   ulint n_iterations = 0;
@@ -1325,6 +1326,7 @@ loop:
   block = buf_LRU_get_free_only(buf_pool);
 
   if (block != nullptr) {
+    // printf("found free block! %i\n", block->page.id.page_no());
     ut_ad(!block->page.someone_has_io_responsibility());
     ut_ad(buf_pool_from_block(block) == buf_pool);
     memset(&block->page.zip, 0, sizeof block->page.zip);
@@ -1342,6 +1344,7 @@ loop:
   freed = false;
   os_rmb;
   if (buf_pool->try_LRU_scan || n_iterations > 0) {
+    // printf("finding block to evict\n");
     /* If no block was in the free list, search from the
     end of the LRU list and try to free a block there.
     If we are doing for the first time we'll scan only
@@ -1739,6 +1742,7 @@ void buf_LRU_make_block_old(buf_page_t *bpage) {
 }
 
 bool buf_LRU_free_page(buf_page_t *bpage, bool zip) {
+  printf("evicting page %i\n", bpage->id.page_no());
   auto buf_pool = buf_pool_from_bpage(bpage);
   auto block_mutex = buf_page_get_mutex(bpage);
   auto hash_lock = buf_page_hash_lock_get(buf_pool, bpage->id);

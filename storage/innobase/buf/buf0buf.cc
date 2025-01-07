@@ -4226,7 +4226,7 @@ buf_block_t *Buf_fetch<T>::single_page() {
   buf_block_t *block;
 
   Counter::inc(m_buf_pool->stat.m_n_page_gets, m_page_id.page_no());
-  printf("looking for page %i... ", m_page_id.page_no());
+  // printf("looking for page %i... ", m_page_id.page_no());
 
   for (;;) {
     if (static_cast<T *>(this)->get(block) == DB_NOT_FOUND) {
@@ -4256,17 +4256,17 @@ buf_block_t *Buf_fetch<T>::single_page() {
 
     switch (check_state(block)) {
       case DB_NOT_FOUND:
-        printf("not found\n");
+        // printf("not found\n");
         return (nullptr);
       case DB_FAIL:
-        printf("failed ");
+        // printf("failed ");
         /* Restart the outer for(;;) loop. */
         continue;
       case DB_SUCCESS:
-        printf("found it!\n");
+        // printf("found it!\n");
         break;
       default:
-        printf("error\n");
+        // printf("error\n");
         ut_error;
         break;
     }
