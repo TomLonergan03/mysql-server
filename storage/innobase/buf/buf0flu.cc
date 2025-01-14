@@ -2116,12 +2116,15 @@ bool buf_flush_single_page_from_LRU(buf_pool_t *buf_pool) {
   bool freed;
   ulint scanned;
   buf_page_t *bpage;
+  printf("buf_flush_single_page_from_LRU\n");
 
   mutex_enter(&buf_pool->LRU_list_mutex);
 
   for (bpage = buf_pool->single_scan_itr.start(), scanned = 0, freed = false;
        bpage != nullptr; ++scanned, bpage = buf_pool->single_scan_itr.get()) {
     ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+    printf("looking at page %i", bpage->id.page_no());
 
     auto prev = UT_LIST_GET_PREV(LRU, bpage);
 
