@@ -3108,27 +3108,31 @@ function can be used to prevent an important page from slipping out of
 the buffer pool.
 @param[in,out]  bpage   buffer block of a file page */
 void buf_page_make_young(buf_page_t *bpage) {
-  buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
-
-  mutex_enter(&buf_pool->LRU_list_mutex);
-
-  ut_a(buf_page_in_file(bpage));
-
-  buf_LRU_make_block_young(bpage);
-
-  mutex_exit(&buf_pool->LRU_list_mutex);
+  // FIX: DISS: this also returns early?
+  return;
+  // buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
+  //
+  // mutex_enter(&buf_pool->LRU_list_mutex);
+  //
+  // ut_a(buf_page_in_file(bpage));
+  //
+  // buf_LRU_make_block_young(bpage);
+  //
+  // mutex_exit(&buf_pool->LRU_list_mutex);
 }
 
 void buf_page_make_old(buf_page_t *bpage) {
-  buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
-
-  mutex_enter(&buf_pool->LRU_list_mutex);
-
-  ut_a(buf_page_in_file(bpage));
-
-  buf_LRU_make_block_old(bpage);
-
-  mutex_exit(&buf_pool->LRU_list_mutex);
+  // FIX: DISS: return early
+  return;
+  // buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
+  //
+  // mutex_enter(&buf_pool->LRU_list_mutex);
+  //
+  // ut_a(buf_page_in_file(bpage));
+  //
+  // buf_LRU_make_block_old(bpage);
+  //
+  // mutex_exit(&buf_pool->LRU_list_mutex);
 }
 
 /** Moves a page to the start of the buffer pool LRU list if it is too old.
@@ -3136,13 +3140,15 @@ This high-level function can be used to prevent an important page from
 slipping out of the buffer pool. The page must be fixed to the buffer pool.
 @param[in,out]  bpage   buffer block of a file page */
 static void buf_page_make_young_if_needed(buf_page_t *bpage) {
-  ut_ad(!mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex));
-  ut_ad(bpage->buf_fix_count > 0);
-  ut_a(buf_page_in_file(bpage));
-
-  if (buf_page_peek_if_too_old(bpage)) {
-    buf_page_make_young(bpage);
-  }
+  // FIX: DISS: this can just return early i think
+  return;
+  // ut_ad(!mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex));
+  // ut_ad(bpage->buf_fix_count > 0);
+  // ut_a(buf_page_in_file(bpage));
+  //
+  // if (buf_page_peek_if_too_old(bpage)) {
+  //   buf_page_make_young(bpage);
+  // }
 }
 
 #ifdef UNIV_DEBUG
@@ -4046,9 +4052,11 @@ void Buf_fetch<T>::read_page() {
     flag is used only during the parallel scans). This would cause unnecessary
     IO when the process is already being parallelized on higher level of
     abstraction. */
-    if (m_mode != Page_fetch::SCAN) {
-      buf_read_ahead_random(m_page_id, m_page_size, ibuf_inside(m_mtr));
-    }
+    // FIX: DISS: this doesn't need to be scan resistant
+
+    // if (m_mode != Page_fetch::SCAN) {
+    buf_read_ahead_random(m_page_id, m_page_size, ibuf_inside(m_mtr));
+    // }
     m_retries = 0;
   } else if (m_retries < BUF_PAGE_READ_MAX_RETRIES) {
     ++m_retries;
@@ -5897,8 +5905,8 @@ bool buf_page_io_complete(buf_page_t *bpage, bool evict, IORequest *type,
       }
     }
 
-    DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", page_not_corrupt
-                    : bpage = bpage;);
+    DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
+                    page_not_corrupt : bpage = bpage;);
 
     if (recv_recovery_is_on()) {
       /* Pages must be uncompressed for crash recovery. */

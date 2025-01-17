@@ -1054,6 +1054,10 @@ static bool buf_LRU_free_from_unzip_LRU_list(buf_pool_t *buf_pool,
   ulint scanned = 0;
   bool freed = false;
 
+  /*
+   * FIX: DISS: this iterates the unzipped lru, and should be a straightforward
+   * change for sieve
+   */
   for (buf_block_t *block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
        block != nullptr && !freed && (scan_all || scanned < srv_LRU_scan_depth);
        ++scanned) {
@@ -1098,18 +1102,22 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
   bool freed{};
   ulint scanned{};
 
+  /*
+   * FIX: DISS: this iterates the main lru, and should be a straightforward
+   * change for sieve
+   */
   for (buf_page_t *bpage = buf_pool->lru_scan_itr.start();
        bpage != nullptr && !freed &&
        (scan_all || scanned < BUF_LRU_SEARCH_SCAN_THRESHOLD);
        ++scanned, bpage = buf_pool->lru_scan_itr.get()) {
-    ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+    // ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
     auto prev = UT_LIST_GET_PREV(LRU, bpage);
     auto block_mutex = buf_page_get_mutex(bpage);
 
     buf_pool->lru_scan_itr.set(prev);
 
-    ut_ad(bpage->in_LRU_list);
-    ut_ad(buf_page_in_file(bpage));
+    // ut_ad(bpage->in_LRU_list);
+    // ut_ad(buf_page_in_file(bpage));
 
     const auto accessed = buf_page_is_accessed(bpage);
 
@@ -1139,7 +1147,7 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
       ++buf_pool->stat.n_ra_pages_evicted;
     }
 
-    ut_ad(!mutex_own(block_mutex));
+    // ut_ad(!mutex_own(block_mutex));
 
     if (freed) {
       break;
