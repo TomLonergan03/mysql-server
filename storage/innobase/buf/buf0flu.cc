@@ -699,6 +699,7 @@ bool buf_flush_ready_for_replace(const buf_page_t *bpage) {
   if (bpage->is_dirty()) {
     return false;
   }
+
   return !bpage->sieve_bit;
 }
 

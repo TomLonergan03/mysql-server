@@ -1114,6 +1114,8 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
        ++scanned, bpage = buf_pool->lru_scan_itr.get()) {
     // ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
     auto prev = UT_LIST_GET_PREV(LRU, bpage);
+    // this still terminates as at worst we make one full lap of the list and
+    // reencounter the start point, which will have the sieve bit set as false.
     if (prev == NULL) {
       prev = UT_LIST_GET_LAST(buf_pool->LRU);
     }

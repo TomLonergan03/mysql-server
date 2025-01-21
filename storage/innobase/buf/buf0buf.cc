@@ -4893,6 +4893,11 @@ buf_page_t *buf_page_init_for_read(ulint mode, const page_id_t &page_id,
       buf_LRU_block_free_non_file_page(block);
     }
 
+    // FIX: diss: setting sieve_bit to true when page is already in buffer pool
+    if (bpage != nullptr) {
+      bpage->sieve_bit = true;
+    }
+
     bpage = nullptr;
 
     goto func_exit;
