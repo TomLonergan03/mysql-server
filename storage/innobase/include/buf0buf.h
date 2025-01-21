@@ -1186,7 +1186,8 @@ class buf_page_t {
         in_free_list(other.in_free_list),
         in_LRU_list(other.in_LRU_list),
         in_page_hash(other.in_page_hash),
-        in_zip_hash(other.in_zip_hash)
+        in_zip_hash(other.in_zip_hash),
+        sieve_bit(other.sieve_bit)
 #endif /* UNIV_DEBUG */
 #endif /* !UNIV_HOTBACKUP */
   {
@@ -1672,8 +1673,8 @@ class buf_page_t {
    the truncation number. */
   uint32_t m_version{};
 
-  // FIX: DISS: this is the SIEVE bit equivalent, and is set to 0 when a page is
-  // passed over for eviction
+  // FIX: DISS: the seen bit used by SIEVE
+  bool sieve_bit;
 
   /** Time of first access, or 0 if the block was never accessed in the
   buffer pool. Protected by block mutex */
@@ -2304,6 +2305,9 @@ struct buf_pool_t {
   /** Zip mutex of this buffer pool instance, protects compressed only pages (of
   type buf_page_t, not buf_block_t */
   BufPoolZipMutex zip_mutex;
+
+  // FIX: diss: sieve hand, protected by LRU_list_mutex
+  buf_page_t *hand;
 
   /** Array index of this buffer pool instance */
   ulint instance_no;

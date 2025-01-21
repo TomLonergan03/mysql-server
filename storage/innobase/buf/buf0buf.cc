@@ -2891,12 +2891,13 @@ void LRUHp::adjust(const buf_page_t *bpage) {
 the LRU list it resets the value to the tail of the LRU list.
 @return buf_page_t from where to start scan. */
 
+// FIX: diss: always give back the root of the LRU
 buf_page_t *LRUItr::start() {
   ut_ad(mutex_own(m_mutex));
 
-  if (!m_hp || m_hp->old) {
-    m_hp = UT_LIST_GET_LAST(m_buf_pool->LRU);
-  }
+  // if (!m_hp || m_hp->old) {
+  m_hp = UT_LIST_GET_LAST(m_buf_pool->LRU);
+  // }
 
   return (m_hp);
 }

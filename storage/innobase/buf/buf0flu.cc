@@ -696,7 +696,10 @@ bool buf_flush_ready_for_replace(const buf_page_t *bpage) {
   if (bpage->was_stale()) {
     return true;
   }
-  return !bpage->is_dirty();
+  if (bpage->is_dirty()) {
+    return false;
+  }
+  return !bpage->sieve_bit;
 }
 
 /** Check if the block was modified and was ready for flushing.

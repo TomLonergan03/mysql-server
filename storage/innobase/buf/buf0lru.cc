@@ -1102,16 +1102,21 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
   bool freed{};
   ulint scanned{};
 
+  buf_pool->lru_scan_itr.set(buf_pool->hand);
+
   /*
    * FIX: DISS: this iterates the main lru, and should be a straightforward
    * change for sieve
    */
-  for (buf_page_t *bpage = buf_pool->lru_scan_itr.start();
+  for (buf_page_t *bpage = buf_pool->lru_scan_itr.get();
        bpage != nullptr && !freed &&
        (scan_all || scanned < BUF_LRU_SEARCH_SCAN_THRESHOLD);
        ++scanned, bpage = buf_pool->lru_scan_itr.get()) {
     // ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
     auto prev = UT_LIST_GET_PREV(LRU, bpage);
+    if (prev == NULL) {
+      prev = UT_LIST_GET_LAST(buf_pool->LRU);
+    }
     auto block_mutex = buf_page_get_mutex(bpage);
 
     buf_pool->lru_scan_itr.set(prev);
@@ -1128,12 +1133,15 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
       mutex_enter(block_mutex);
 
       if (buf_flush_ready_for_replace(bpage)) {
+        buf_pool->hand = prev;
         freed = buf_LRU_free_page(bpage, true);
         printf("freed not stale, last access: %ld ms ago\n",
                std::chrono::duration_cast<std::chrono::milliseconds>(
                    std::chrono::steady_clock::now() - accessed)
                    .count());
       }
+
+      bpage->sieve_bit = false;
 
       if (!freed) {
         mutex_exit(block_mutex);
