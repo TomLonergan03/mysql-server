@@ -1129,7 +1129,7 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
     const auto accessed = buf_page_is_accessed(bpage);
 
     if (bpage->was_stale()) {
-      printf("freed stale\n");
+      // printf("freed stale\n");
       freed = buf_page_free_stale(buf_pool, bpage);
     } else {
       mutex_enter(block_mutex);
@@ -1137,10 +1137,10 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
       if (buf_flush_ready_for_replace(bpage)) {
         buf_pool->hand = prev;
         freed = buf_LRU_free_page(bpage, true);
-        printf("freed not stale, last access: %ld ms ago\n",
-               std::chrono::duration_cast<std::chrono::milliseconds>(
-                   std::chrono::steady_clock::now() - accessed)
-                   .count());
+        // printf("freed not stale, last access: %ld ms ago\n",
+        //        std::chrono::duration_cast<std::chrono::milliseconds>(
+        //            std::chrono::steady_clock::now() - accessed)
+        //            .count());
       }
 
       bpage->sieve_bit = false;
@@ -1183,12 +1183,12 @@ bool buf_LRU_scan_and_free_block(buf_pool_t *buf_pool, bool scan_all) {
   mutex_enter(&buf_pool->LRU_list_mutex);
 
   if (use_unzip_list) {
-    printf("freeing from unzipped list\n");
+    // printf("freeing from unzipped list\n");
     freed = buf_LRU_free_from_unzip_LRU_list(buf_pool, scan_all);
   }
 
   if (!freed) {
-    printf("freeing from common list\n");
+    // printf("freeing from common list\n");
     freed = buf_LRU_free_from_common_LRU_list(buf_pool, scan_all);
   }
 
@@ -1369,7 +1369,7 @@ loop:
   freed = false;
   os_rmb;
   if (buf_pool->try_LRU_scan || n_iterations > 0) {
-    printf("finding block to evict\n");
+    // printf("finding block to evict\n");
     /* If no block was in the free list, search from the
     end of the LRU list and try to free a block there.
     If we are doing for the first time we'll scan only
@@ -1767,7 +1767,7 @@ void buf_LRU_make_block_old(buf_page_t *bpage) {
 }
 
 bool buf_LRU_free_page(buf_page_t *bpage, bool zip) {
-  printf("evicting page %i\n", bpage->id.page_no());
+  // printf("evicting page %i\n", bpage->id.page_no());
   auto buf_pool = buf_pool_from_bpage(bpage);
   auto block_mutex = buf_page_get_mutex(bpage);
   auto hash_lock = buf_page_hash_lock_get(buf_pool, bpage->id);

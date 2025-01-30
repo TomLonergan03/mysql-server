@@ -287,7 +287,7 @@ read_ahead:
 }
 
 bool buf_read_page(const page_id_t &page_id, const page_size_t &page_size) {
-  printf("reading page %i\n", page_id.page_no());
+  // printf("reading page %i\n", page_id.page_no());
   ulint count;
   dberr_t err;
 
