@@ -48,6 +48,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "buf/buf.h"
 
+#include <deque>
 #include <ostream>
 
 // Forward declaration
@@ -1673,7 +1674,7 @@ class buf_page_t {
    the truncation number. */
   uint32_t m_version{};
 
-  // FIX: DISS: the seen bit used by SIEVE
+  // INFO: DISS: the seen bit used by SIEVE
   bool sieve_bit;
 
   /** Time of first access, or 0 if the block was never accessed in the
@@ -2306,9 +2307,6 @@ struct buf_pool_t {
   type buf_page_t, not buf_block_t */
   BufPoolZipMutex zip_mutex;
 
-  // FIX: diss: sieve hand, protected by LRU_list_mutex
-  buf_page_t *hand;
-
   /** Array index of this buffer pool instance */
   ulint instance_no;
 
@@ -2465,8 +2463,14 @@ struct buf_pool_t {
   single page flushing victim.  Protected by buf_pool::LRU_list_mutex. */
   LRUItr single_scan_itr;
 
-  /** Base node of the LRU list */
+  /** INFO: DISS: Base node of the main list */
   UT_LIST_BASE_NODE_T(buf_page_t, LRU) LRU;
+
+  /** INFO: DISS: Base node of the small list */
+  UT_LIST_BASE_NODE_T(buf_page_t, LRU) small_fifo;
+
+  /** INFO: DISS: Base node of the ghost list */
+  std::deque<page_id_t> ghost_fifo;
 
   /** Pointer to the about LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV oldest blocks in
   the LRU list; NULL if LRU length less than BUF_LRU_OLD_MIN_LEN; NOTE: when

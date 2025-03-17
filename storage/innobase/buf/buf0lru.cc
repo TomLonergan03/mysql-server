@@ -1037,6 +1037,47 @@ void buf_LRU_insert_zip_clean(buf_page_t *bpage) {
 }
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
+/** INFO: DISS: check if a page is in the ghost queue to determine where it will
+ * be inserted
+ */
+static bool buf_is_in_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  const page_id_t id = page->id;
+
+  return std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(), id) !=
+      buf_pool->ghost_fifo.end());
+}
+
+static constexpr size_t GHOST_FIFO_MAX_SIZE = 1000;
+
+/** INFO: DISS: add a page to the ghost queue ensuring maximum size limit
+ */
+static void buf_add_to_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  const page_id_t id = page->id;
+
+  buf_pool->ghost_fifo.push_back(id);
+  if (buf_pool->ghost_fifo.size() > GHOST_FIFO_MAX_SIZE) {
+    buf_pool->ghost_fifo.pop_front();
+  }
+}
+
+/** INFO: DISS: remove a page from the ghost queue
+ */
+static void buf_add_to_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  const page_id_t id = page->id;
+
+  auto it =
+      std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(), id);
+  if (it != buf_pool->ghost_fifo.end()) {
+    buf_pool->ghost_fifo.erase(it);
+  }
+}
+
 /** Try to free an uncompressed page of a compressed block from the unzip
 LRU list.  The compressed page is preserved, and it need not be clean.
 @param[in]      buf_pool        buffer pool instance
@@ -1055,7 +1096,7 @@ static bool buf_LRU_free_from_unzip_LRU_list(buf_pool_t *buf_pool,
   bool freed = false;
 
   /*
-   * FIX: DISS: this iterates the unzipped lru, and should be a straightforward
+   * INFO: DISS: this iterates the unzipped lru, and should be a straightforward
    * change for sieve
    */
   for (buf_block_t *block = UT_LIST_GET_LAST(buf_pool->unzip_LRU);
@@ -1105,7 +1146,7 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
   buf_pool->lru_scan_itr.set(buf_pool->hand);
 
   /*
-   * FIX: DISS: this iterates the main lru, and should be a straightforward
+   * INFO: DISS: this iterates the main lru, and should be a straightforward
    * change for sieve
    */
   for (buf_page_t *bpage = buf_pool->lru_scan_itr.get();

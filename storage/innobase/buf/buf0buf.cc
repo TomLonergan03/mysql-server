@@ -2891,7 +2891,7 @@ void LRUHp::adjust(const buf_page_t *bpage) {
 the LRU list it resets the value to the tail of the LRU list.
 @return buf_page_t from where to start scan. */
 
-// FIX: diss: always give back the root of the LRU
+// INFO: DISS: always give back the root of the LRU
 buf_page_t *LRUItr::start() {
   ut_ad(mutex_own(m_mutex));
 
@@ -3109,7 +3109,7 @@ function can be used to prevent an important page from slipping out of
 the buffer pool.
 @param[in,out]  bpage   buffer block of a file page */
 void buf_page_make_young(buf_page_t *bpage) {
-  // FIX: DISS: this also returns early?
+  // INFO: DISS: this also returns early?
   return;
   // buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
   //
@@ -3123,7 +3123,7 @@ void buf_page_make_young(buf_page_t *bpage) {
 }
 
 void buf_page_make_old(buf_page_t *bpage) {
-  // FIX: DISS: return early
+  // INFO: DISS: return early
   return;
   // buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
   //
@@ -3141,7 +3141,7 @@ This high-level function can be used to prevent an important page from
 slipping out of the buffer pool. The page must be fixed to the buffer pool.
 @param[in,out]  bpage   buffer block of a file page */
 static void buf_page_make_young_if_needed(buf_page_t *bpage) {
-  // FIX: DISS: this can just return early i think
+  // INFO: DISS: this can just return early i think
   return;
   // ut_ad(!mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex));
   // ut_ad(bpage->buf_fix_count > 0);
@@ -4053,7 +4053,7 @@ void Buf_fetch<T>::read_page() {
     flag is used only during the parallel scans). This would cause unnecessary
     IO when the process is already being parallelized on higher level of
     abstraction. */
-    // FIX: DISS: this doesn't need to be scan resistant
+    // INFO: DISS: this doesn't need to be scan resistant
 
     // if (m_mode != Page_fetch::SCAN) {
     buf_read_ahead_random(m_page_id, m_page_size, ibuf_inside(m_mtr));
@@ -4893,7 +4893,7 @@ buf_page_t *buf_page_init_for_read(ulint mode, const page_id_t &page_id,
       buf_LRU_block_free_non_file_page(block);
     }
 
-    // FIX: diss: setting sieve_bit to true when page is already in buffer pool
+    // INFO: DISS: setting sieve_bit to true when page is already in buffer pool
     if (bpage != nullptr) {
       bpage->sieve_bit = true;
     }

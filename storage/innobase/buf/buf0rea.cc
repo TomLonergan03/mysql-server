@@ -63,7 +63,8 @@ read-ahead is not done: this is to prevent flooding the buffer pool with
 i/o-fixed buffer blocks */
 static constexpr uint32_t BUF_READ_AHEAD_PEND_LIMIT = 2;
 
-// FIX: DISS: this should set the read bit on a bcb if it isn't loaded from disk
+// INFO: DISS: this should set the read bit on a bcb if it isn't loaded from
+// disk
 ulint buf_read_page_low(dberr_t *err, bool sync, ulint type, ulint mode,
                         const page_id_t &page_id, const page_size_t &page_size,
                         bool unzip) {
