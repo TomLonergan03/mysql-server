@@ -1043,20 +1043,20 @@ void buf_LRU_insert_zip_clean(buf_page_t *bpage) {
 static bool buf_is_in_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
   ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
-  const page_id_t id = page->id;
+  const page_no_t id = page->id.page_no();
 
-  return std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(), id) !=
-      buf_pool->ghost_fifo.end());
+  return std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(),
+                   id) != buf_pool->ghost_fifo.end();
 }
 
-static constexpr size_t GHOST_FIFO_MAX_SIZE = 1000;
+static constexpr size_t GHOST_FIFO_MAX_SIZE = 10000;
 
 /** INFO: DISS: add a page to the ghost queue ensuring maximum size limit
  */
 static void buf_add_to_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
   ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
-  const page_id_t id = page->id;
+  const page_no_t id = page->id.page_no();
 
   buf_pool->ghost_fifo.push_back(id);
   if (buf_pool->ghost_fifo.size() > GHOST_FIFO_MAX_SIZE) {
@@ -1066,10 +1066,11 @@ static void buf_add_to_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
 
 /** INFO: DISS: remove a page from the ghost queue
  */
-static void buf_add_to_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
+static void buf_remove_from_ghost_queue(buf_pool_t *buf_pool,
+                                        buf_page_t *page) {
   ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
-  const page_id_t id = page->id;
+  const page_no_t id = page->id.page_no();
 
   auto it =
       std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(), id);
@@ -1131,41 +1132,21 @@ static bool buf_LRU_free_from_unzip_LRU_list(buf_pool_t *buf_pool,
   return (freed);
 }
 
-/** Try to free a clean page from the common LRU list.
-@param[in,out]  buf_pool        buffer pool instance
-@param[in]      scan_all        scan whole LRU list if true, otherwise scan
-                                only up to BUF_LRU_SEARCH_SCAN_THRESHOLD
-@return true if freed */
-static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
-                                              bool scan_all) {
-  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
-
+static bool buf_evict_main_fifo(buf_pool_t *buf_pool, bool scan_all) {
   bool freed{};
   ulint scanned{};
-
-  buf_pool->lru_scan_itr.set(buf_pool->hand);
-
-  /*
-   * INFO: DISS: this iterates the main lru, and should be a straightforward
-   * change for sieve
-   */
-  for (buf_page_t *bpage = buf_pool->lru_scan_itr.get();
+  for (buf_page_t *bpage = buf_pool->main_scan_itr.start();
        bpage != nullptr && !freed &&
        (scan_all || scanned < BUF_LRU_SEARCH_SCAN_THRESHOLD);
-       ++scanned, bpage = buf_pool->lru_scan_itr.get()) {
-    // ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+       ++scanned, bpage = buf_pool->main_scan_itr.get()) {
+    ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
     auto prev = UT_LIST_GET_PREV(LRU, bpage);
-    // this still terminates as at worst we make one full lap of the list and
-    // reencounter the start point, which will have the sieve bit set as false.
-    if (prev == NULL) {
-      prev = UT_LIST_GET_LAST(buf_pool->LRU);
-    }
     auto block_mutex = buf_page_get_mutex(bpage);
 
-    buf_pool->lru_scan_itr.set(prev);
+    buf_pool->main_scan_itr.set(prev);
 
-    // ut_ad(bpage->in_LRU_list);
-    // ut_ad(buf_page_in_file(bpage));
+    ut_ad(bpage->in_LRU_list);
+    ut_ad(buf_page_in_file(bpage));
 
     const auto accessed = buf_page_is_accessed(bpage);
 
@@ -1176,7 +1157,6 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
       mutex_enter(block_mutex);
 
       if (buf_flush_ready_for_replace(bpage)) {
-        buf_pool->hand = prev;
         freed = buf_LRU_free_page(bpage, true);
         // printf("freed not stale, last access: %ld ms ago\n",
         //        std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1184,7 +1164,7 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
         //            .count());
       }
 
-      bpage->sieve_bit = false;
+      bpage->read_bit = false;
 
       if (!freed) {
         mutex_exit(block_mutex);
@@ -1198,7 +1178,7 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
       ++buf_pool->stat.n_ra_pages_evicted;
     }
 
-    // ut_ad(!mutex_own(block_mutex));
+    ut_ad(!mutex_own(block_mutex));
 
     if (freed) {
       break;
@@ -1210,11 +1190,118 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
                                  MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
                                  MONITOR_LRU_SEARCH_SCANNED_PER_CALL, scanned);
   }
+  return freed;
+}
 
-  ut_ad(freed ? !mutex_own(&buf_pool->LRU_list_mutex)
-              : mutex_own(&buf_pool->LRU_list_mutex));
+constexpr size_t MAIN_MAX_SIZE = 1000;
+constexpr size_t SMALL_MAX_SIZE = 100;
 
-  return (freed);
+static bool buf_evict_small_fifo_page(buf_pool_t *buf_pool, buf_page_t *bpage) {
+  if (bpage->read_bit || buf_is_in_ghost_queue(buf_pool, bpage)) {
+    UT_LIST_REMOVE(buf_pool->LRU, bpage);
+    printf("promoting to main fifo\n");
+    bpage->read_bit = false;
+    UT_LIST_ADD_FIRST(buf_pool->main_fifo, bpage);
+    printf("promoted to main fifo\n");
+    while (buf_pool->main_fifo.get_length() > MAIN_MAX_SIZE) {
+      printf("evicting back of main fifo\n");
+      return buf_evict_main_fifo(buf_pool, false);
+    }
+    printf("evicted to main fifo\n");
+    return true;
+  } else {
+    printf("evicting to ghost fifo\n");
+    buf_add_to_ghost_queue(buf_pool, bpage);
+    return buf_LRU_free_page(bpage, true);
+  }
+}
+
+static bool buf_evict_small_fifo(buf_pool_t *buf_pool) {
+  bool freed{};
+  ulint scanned{};
+
+  for (buf_page_t *bpage = buf_pool->lru_scan_itr.start();
+       bpage != nullptr && !freed;
+       ++scanned, bpage = buf_pool->lru_scan_itr.get()) {
+    ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+    auto prev = UT_LIST_GET_PREV(LRU, bpage);
+    auto block_mutex = buf_page_get_mutex(bpage);
+
+    buf_pool->lru_scan_itr.set(prev);
+
+    ut_ad(bpage->in_LRU_list);
+    ut_ad(buf_page_in_file(bpage));
+
+    const auto accessed = buf_page_is_accessed(bpage);
+
+    if (bpage->was_stale()) {
+      // printf("freed stale\n");
+      freed = buf_page_free_stale(buf_pool, bpage);
+    } else {
+      mutex_enter(block_mutex);
+
+      if (buf_flush_ready_for_replace(bpage)) {
+        freed = true;
+        // printf("freed not stale, last access: %ld ms ago\n",
+        //        std::chrono::duration_cast<std::chrono::milliseconds>(
+        //            std::chrono::steady_clock::now() - accessed)
+        //            .count());
+      }
+
+      bpage->read_bit = false;
+
+      if (!freed) {
+        mutex_exit(block_mutex);
+      }
+    }
+
+    if (freed && accessed == std::chrono::steady_clock::time_point{}) {
+      /* Keep track of pages that are evicted without
+      ever being accessed. This gives us a measure of
+      the effectiveness of readahead */
+      ++buf_pool->stat.n_ra_pages_evicted;
+    }
+
+    ut_ad(!mutex_own(block_mutex));
+
+    if (freed) {
+      printf("found in small fifo\n");
+      buf_evict_small_fifo_page(buf_pool, bpage);
+      if (buf_pool->LRU.get_length() > SMALL_MAX_SIZE) {
+        printf("evicting back of small fifo\n");
+        buf_evict_small_fifo(buf_pool);
+      }
+      break;
+    }
+  }
+  if (scanned) {
+    MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_SEARCH_SCANNED,
+                                 MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
+                                 MONITOR_LRU_SEARCH_SCANNED_PER_CALL, scanned);
+  }
+  return freed;
+}
+
+/** Try to free a clean page from the common LRU list.
+@param[in,out]  buf_pool        buffer pool instance
+@param[in]      scan_all        scan whole LRU list if true, otherwise scan
+                                only up to BUF_LRU_SEARCH_SCAN_THRESHOLD
+@return true if freed */
+static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
+                                              bool scan_all) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  printf("Fifo size: %ld\n", buf_pool->main_fifo.get_length());
+  printf("Small fifo size: %ld\n", buf_pool->LRU.get_length());
+  printf("Ghost fifo size: %ld\n", buf_pool->ghost_fifo.size());
+
+  if (buf_evict_small_fifo(buf_pool)) {
+    return true;
+  }
+
+  printf("Eviction failed\n");
+
+  return false;
 }
 
 bool buf_LRU_scan_and_free_block(buf_pool_t *buf_pool, bool scan_all) {

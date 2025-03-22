@@ -1188,7 +1188,7 @@ class buf_page_t {
         in_LRU_list(other.in_LRU_list),
         in_page_hash(other.in_page_hash),
         in_zip_hash(other.in_zip_hash),
-        sieve_bit(other.sieve_bit)
+        read_bit(other.read_bit)
 #endif /* UNIV_DEBUG */
 #endif /* !UNIV_HOTBACKUP */
   {
@@ -1675,7 +1675,7 @@ class buf_page_t {
   uint32_t m_version{};
 
   // INFO: DISS: the seen bit used by SIEVE
-  bool sieve_bit;
+  bool read_bit;
 
   /** Time of first access, or 0 if the block was never accessed in the
   buffer pool. Protected by block mutex */
@@ -2466,11 +2466,10 @@ struct buf_pool_t {
   /** INFO: DISS: Base node of the main list */
   UT_LIST_BASE_NODE_T(buf_page_t, LRU) LRU;
 
-  /** INFO: DISS: Base node of the small list */
-  UT_LIST_BASE_NODE_T(buf_page_t, LRU) small_fifo;
-
-  /** INFO: DISS: Base node of the ghost list */
-  std::deque<page_id_t> ghost_fifo;
+  /** INFO: DISS: s3 fifo infra */
+  LRUItr main_scan_itr;
+  UT_LIST_BASE_NODE_T(buf_page_t, LRU) main_fifo;
+  std::deque<page_no_t> ghost_fifo;
 
   /** Pointer to the about LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV oldest blocks in
   the LRU list; NULL if LRU length less than BUF_LRU_OLD_MIN_LEN; NOTE: when

@@ -700,7 +700,7 @@ bool buf_flush_ready_for_replace(const buf_page_t *bpage) {
     return false;
   }
 
-  return !bpage->sieve_bit;
+  return !bpage->read_bit;
 }
 
 /** Check if the block was modified and was ready for flushing.

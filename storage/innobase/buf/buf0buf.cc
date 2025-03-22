@@ -1346,6 +1346,8 @@ static void buf_pool_create(buf_pool_t *buf_pool, ulint buf_pool_size,
   /* Initialize the iterator for single page scan search */
   new (&buf_pool->single_scan_itr) LRUItr(buf_pool, &buf_pool->LRU_list_mutex);
 
+  new (&buf_pool->ghost_fifo) std::deque<page_no_t>();
+
   err = DB_SUCCESS;
 }
 
@@ -4893,9 +4895,9 @@ buf_page_t *buf_page_init_for_read(ulint mode, const page_id_t &page_id,
       buf_LRU_block_free_non_file_page(block);
     }
 
-    // INFO: DISS: setting sieve_bit to true when page is already in buffer pool
+    // INFO: DISS: setting read_bit to true when page is already in buffer pool
     if (bpage != nullptr) {
-      bpage->sieve_bit = true;
+      bpage->read_bit = true;
     }
 
     bpage = nullptr;
