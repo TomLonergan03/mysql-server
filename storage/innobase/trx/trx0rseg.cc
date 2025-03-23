@@ -264,6 +264,7 @@ static trx_rseg_t *trx_rseg_physical_initialize(trx_rseg_t *rseg,
       mtr_read_ulint(rseg_header + TRX_RSEG_HISTORY_SIZE, MLOG_4BYTES, mtr) +
       1 + sum_of_undo_sizes);
 
+  printf("get flst len\n");
   auto len = flst_get_len(rseg_header + TRX_RSEG_HISTORY);
 
   if (len > 0) {
@@ -278,6 +279,7 @@ static trx_rseg_t *trx_rseg_physical_initialize(trx_rseg_t *rseg,
     rseg->last_page_no = node_addr.page;
     rseg->last_offset = node_addr.boffset;
 
+    printf("undo page set\n");
     auto undo_log_hdr =
         trx_undo_page_get(page_id_t(rseg->space_id, node_addr.page),
                           rseg->page_size, mtr) +
@@ -317,6 +319,8 @@ static trx_rseg_t *trx_rseg_physical_initialize(trx_rseg_t *rseg,
     rseg->last_page_no = FIL_NULL;
   }
 
+  printf("rseg init done\n");
+
   return (rseg);
 }
 
@@ -342,10 +346,13 @@ page_no_t trx_rseg_get_page_no(space_id_t space_id, ulint rseg_id) {
 @param[in]      arg             purge queue
 @param[in]      gtid_trx_no     GTID to be set in the rollback segment */
 void trx_rseg_init_thread(void *arg, trx_id_t gtid_trx_no) {
+  printf("Starting purge, active threads: %d\n",
+         active_rseg_init_threads.load());
   trx_rseg_t *rseg = nullptr;
   purge_pq_t *purge_queue = (purge_pq_t *)arg;
   while (true) {
     mutex_enter(&purge_sys->pq_mutex);
+    printf("rsegs_queue size: %d\n", purge_sys->rsegs_queue.size());
     if (purge_sys->rsegs_queue.empty()) {
       mutex_exit(&purge_sys->pq_mutex);
       break;
@@ -361,6 +368,7 @@ void trx_rseg_init_thread(void *arg, trx_id_t gtid_trx_no) {
     mtr_commit(&mtr);
   }
   active_rseg_init_threads.fetch_sub(1);
+  printf("Done purging, active threads: %d\n", active_rseg_init_threads.load());
 }
 
 trx_rseg_t *trx_rseg_mem_create(ulint id, space_id_t space_id,

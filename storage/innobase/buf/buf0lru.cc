@@ -1197,15 +1197,17 @@ constexpr size_t MAIN_MAX_SIZE = 1000;
 constexpr size_t SMALL_MAX_SIZE = 100;
 
 static bool buf_evict_small_fifo_page(buf_pool_t *buf_pool, buf_page_t *bpage) {
+  auto block_mutex = buf_page_get_mutex(bpage);
   if (bpage->read_bit || buf_is_in_ghost_queue(buf_pool, bpage)) {
     UT_LIST_REMOVE(buf_pool->LRU, bpage);
     printf("promoting to main fifo\n");
     bpage->read_bit = false;
     UT_LIST_ADD_FIRST(buf_pool->main_fifo, bpage);
+    mutex_exit(block_mutex);
     printf("promoted to main fifo\n");
     while (buf_pool->main_fifo.get_length() > MAIN_MAX_SIZE) {
       printf("evicting back of main fifo\n");
-      return buf_evict_main_fifo(buf_pool, false);
+      buf_evict_main_fifo(buf_pool, false);
     }
     printf("evicted to main fifo\n");
     return true;
@@ -1241,7 +1243,13 @@ static bool buf_evict_small_fifo(buf_pool_t *buf_pool) {
       mutex_enter(block_mutex);
 
       if (buf_flush_ready_for_replace(bpage)) {
-        freed = true;
+        printf("found in small fifo\n");
+        mutex_exit(block_mutex);
+        freed = buf_evict_small_fifo_page(buf_pool, bpage);
+        // if (buf_pool->LRU.get_length() > SMALL_MAX_SIZE) {
+        //   printf("evicting back of small fifo\n");
+        //   buf_evict_small_fifo(buf_pool);
+        // }
         // printf("freed not stale, last access: %ld ms ago\n",
         //        std::chrono::duration_cast<std::chrono::milliseconds>(
         //            std::chrono::steady_clock::now() - accessed)
@@ -1265,12 +1273,6 @@ static bool buf_evict_small_fifo(buf_pool_t *buf_pool) {
     ut_ad(!mutex_own(block_mutex));
 
     if (freed) {
-      printf("found in small fifo\n");
-      buf_evict_small_fifo_page(buf_pool, bpage);
-      if (buf_pool->LRU.get_length() > SMALL_MAX_SIZE) {
-        printf("evicting back of small fifo\n");
-        buf_evict_small_fifo(buf_pool);
-      }
       break;
     }
   }
@@ -1296,6 +1298,10 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
   printf("Ghost fifo size: %ld\n", buf_pool->ghost_fifo.size());
 
   if (buf_evict_small_fifo(buf_pool)) {
+    printf("Fifo size: %ld\n", buf_pool->main_fifo.get_length());
+    printf("Small fifo size: %ld\n", buf_pool->LRU.get_length());
+    printf("Ghost fifo size: %ld\n", buf_pool->ghost_fifo.size());
+    printf("done freeing\n");
     return true;
   }
 
