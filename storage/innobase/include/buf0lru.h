@@ -90,6 +90,8 @@ The caller must hold the LRU list and buf_page_get_mutex() mutexes.
 @return true if freed, false otherwise. */
 [[nodiscard]] bool buf_LRU_free_page(buf_page_t *bpage, bool zip);
 
+bool buf_evict_main_fifo(buf_pool_t *buf_pool, bool scan_all);
+
 /** Try to free a replaceable block.
 @param[in,out]  buf_pool        buffer pool instance
 @param[in]      scan_all        scan whole LRU list if true, otherwise scan

@@ -1132,16 +1132,20 @@ static bool buf_LRU_free_from_unzip_LRU_list(buf_pool_t *buf_pool,
   return (freed);
 }
 
-static bool buf_evict_main_fifo(buf_pool_t *buf_pool, bool scan_all) {
+bool buf_evict_main_fifo(buf_pool_t *buf_pool, bool scan_all) {
   bool freed{};
   ulint scanned{};
-  for (buf_page_t *bpage = buf_pool->main_scan_itr.start();
+  buf_pool->main_scan_itr.set(UT_LIST_GET_LAST(buf_pool->main_fifo));
+  for (buf_page_t *bpage = buf_pool->main_scan_itr.get();
        bpage != nullptr && !freed &&
        (scan_all || scanned < BUF_LRU_SEARCH_SCAN_THRESHOLD);
        ++scanned, bpage = buf_pool->main_scan_itr.get()) {
+    printf("noseg\n");
     ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
     auto prev = UT_LIST_GET_PREV(LRU, bpage);
+    printf("getting block mutex\n");
     auto block_mutex = buf_page_get_mutex(bpage);
+    printf("got block mutex\n");
 
     buf_pool->main_scan_itr.set(prev);
 
@@ -1203,12 +1207,12 @@ static bool buf_evict_small_fifo_page(buf_pool_t *buf_pool, buf_page_t *bpage) {
     printf("promoting to main fifo\n");
     bpage->read_bit = false;
     UT_LIST_ADD_FIRST(buf_pool->main_fifo, bpage);
-    mutex_exit(block_mutex);
     printf("promoted to main fifo\n");
     while (buf_pool->main_fifo.get_length() > MAIN_MAX_SIZE) {
       printf("evicting back of main fifo\n");
-      buf_evict_main_fifo(buf_pool, false);
+      buf_evict_main_fifo(buf_pool, true);
     }
+    mutex_exit(block_mutex);
     printf("evicted to main fifo\n");
     return true;
   } else {

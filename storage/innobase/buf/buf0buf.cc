@@ -6091,6 +6091,9 @@ static void buf_pool_invalidate_instance(buf_pool_t *buf_pool) {
   while (buf_LRU_scan_and_free_block(buf_pool, true)) {
   }
 
+  while (buf_evict_main_fifo(buf_pool, true)) {
+  }
+
   mutex_enter(&buf_pool->LRU_list_mutex);
 
   ut_ad(UT_LIST_GET_LEN(buf_pool->LRU) == 0);
