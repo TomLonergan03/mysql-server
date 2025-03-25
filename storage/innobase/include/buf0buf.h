@@ -48,6 +48,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "buf/buf.h"
 
+#include <deque>
 #include <ostream>
 
 // Forward declaration
@@ -2471,6 +2472,9 @@ struct buf_pool_t {
   if LRU_old == NULL; NOTE: LRU_old_len must be adjusted whenever LRU_old
   shrinks or grows! */
   ulint LRU_old_len;
+
+  // INFO: DISS: ghost fifo queue
+  std::deque<page_no_t> ghost_fifo;
 
   /** Base node of the unzip_LRU list. The list is protected by the
   LRU_list_mutex. */
