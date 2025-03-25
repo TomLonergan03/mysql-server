@@ -1037,6 +1037,48 @@ void buf_LRU_insert_zip_clean(buf_page_t *bpage) {
 }
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
+/** INFO: DISS: check if a page is in the ghost queue to determine where it will
+ * be inserted
+ */
+static bool buf_is_in_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  const page_no_t id = page->id.page_no();
+
+  return std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(),
+                   id) != buf_pool->ghost_fifo.end();
+}
+
+static constexpr size_t GHOST_FIFO_MAX_SIZE = 10000;
+
+/** INFO: DISS: add a page to the ghost queue ensuring maximum size limit
+ */
+static void buf_add_to_ghost_queue(buf_pool_t *buf_pool, buf_page_t *page) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  const page_no_t id = page->id.page_no();
+
+  buf_pool->ghost_fifo.push_back(id);
+  if (buf_pool->ghost_fifo.size() > GHOST_FIFO_MAX_SIZE) {
+    buf_pool->ghost_fifo.pop_front();
+  }
+}
+
+/** INFO: DISS: remove a page from the ghost queue
+ */
+static void buf_remove_from_ghost_queue(buf_pool_t *buf_pool,
+                                        buf_page_t *page) {
+  ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
+  const page_no_t id = page->id.page_no();
+
+  auto it =
+      std::find(buf_pool->ghost_fifo.begin(), buf_pool->ghost_fifo.end(), id);
+  if (it != buf_pool->ghost_fifo.end()) {
+    buf_pool->ghost_fifo.erase(it);
+  }
+}
+
 /** Try to free an uncompressed page of a compressed block from the unzip
 LRU list.  The compressed page is preserved, and it need not be clean.
 @param[in]      buf_pool        buffer pool instance
@@ -1120,6 +1162,10 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
 
       if (buf_flush_ready_for_replace(bpage)) {
         freed = buf_LRU_free_page(bpage, true);
+        if (freed && !buf_is_in_ghost_queue(buf_pool, bpage)) {
+          buf_add_to_ghost_queue(buf_pool, bpage);
+          printf("Added page %u to ghost queue\n", bpage->id.page_no());
+        }
       }
 
       if (!freed) {
@@ -1709,6 +1755,12 @@ void buf_LRU_add_block(buf_page_t *bpage, /*!< in: control block */
                                   added to the start, regardless of this
                                   parameter */
 {
+  buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
+  if (buf_is_in_ghost_queue(buf_pool, bpage)) {
+    printf("Page %u is in ghost queue\n", bpage->id.page_no());
+    old = false;
+    buf_remove_from_ghost_queue(buf_pool, bpage);
+  }
   buf_LRU_add_block_low(bpage, old);
 }
 

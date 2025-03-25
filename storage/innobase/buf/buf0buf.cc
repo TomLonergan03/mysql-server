@@ -1346,6 +1346,8 @@ static void buf_pool_create(buf_pool_t *buf_pool, ulint buf_pool_size,
   /* Initialize the iterator for single page scan search */
   new (&buf_pool->single_scan_itr) LRUItr(buf_pool, &buf_pool->LRU_list_mutex);
 
+  new (&buf_pool->ghost_fifo) std::deque<page_no_t>();
+
   err = DB_SUCCESS;
 }
 
@@ -5892,8 +5894,8 @@ bool buf_page_io_complete(buf_page_t *bpage, bool evict, IORequest *type,
       }
     }
 
-    DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", page_not_corrupt
-                    : bpage = bpage;);
+    DBUG_EXECUTE_IF("buf_page_import_corrupt_failure",
+                    page_not_corrupt : bpage = bpage;);
 
     if (recv_recovery_is_on()) {
       /* Pages must be uncompressed for crash recovery. */
