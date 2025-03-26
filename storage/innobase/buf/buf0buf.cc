@@ -3123,17 +3123,15 @@ void buf_page_make_young(buf_page_t *bpage) {
 }
 
 void buf_page_make_old(buf_page_t *bpage) {
-  // FIX: DISS: return early
-  return;
-  // buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
-  //
-  // mutex_enter(&buf_pool->LRU_list_mutex);
-  //
-  // ut_a(buf_page_in_file(bpage));
-  //
-  // buf_LRU_make_block_old(bpage);
-  //
-  // mutex_exit(&buf_pool->LRU_list_mutex);
+  buf_pool_t *buf_pool = buf_pool_from_bpage(bpage);
+
+  mutex_enter(&buf_pool->LRU_list_mutex);
+
+  ut_a(buf_page_in_file(bpage));
+
+  buf_LRU_make_block_old(bpage);
+
+  mutex_exit(&buf_pool->LRU_list_mutex);
 }
 
 /** Moves a page to the start of the buffer pool LRU list if it is too old.
@@ -4921,7 +4919,8 @@ buf_page_t *buf_page_init_for_read(ulint mode, const page_id_t &page_id,
     buf_page_set_io_fix(bpage, BUF_IO_READ);
 
     /* The block must be put to the LRU list, to the old blocks */
-    buf_LRU_add_block(bpage, true /* to old blocks */);
+    // INFO: DISS: we actually add to new blocks for fifoness
+    buf_LRU_add_block(bpage, false);
 
     if (page_size.is_compressed()) {
       block->page.zip.data = (page_zip_t *)data;
@@ -5004,7 +5003,8 @@ buf_page_t *buf_page_init_for_read(ulint mode, const page_id_t &page_id,
 
     /* The block must be put to the LRU list, to the old blocks.
     The zip size is already set into the page zip */
-    buf_LRU_add_block(bpage, true /* to old blocks */);
+    // INFO: DISS: we actually add to new blocks for fifoness
+    buf_LRU_add_block(bpage, false);
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
     buf_LRU_insert_zip_clean(bpage);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
