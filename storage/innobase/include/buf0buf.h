@@ -497,6 +497,12 @@ the buffer pool.
 @param[in,out]  bpage   buffer block of a file page */
 void buf_page_make_young(buf_page_t *bpage);
 
+/** Moves a page to the start of the buffer pool LRU list. This high-level
+function can be used to prevent an important page from slipping out of
+the buffer pool.
+@param[in,out]  bpage   buffer block of a file page */
+void buf_page_make_young_no_mutex(buf_page_t *bpage);
+
 /** Moved a page to the end of the buffer pool LRU list so that it can be
 flushed out at the earliest.
 @param[in]      bpage   buffer block of a file page */

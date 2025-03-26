@@ -32,6 +32,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
  *******************************************************/
 
 #include "buf0lru.h"
+#include <iostream>
 
 #include "btr0btr.h"
 #include "btr0sea.h"
@@ -1160,12 +1161,18 @@ static bool buf_LRU_free_from_common_LRU_list(buf_pool_t *buf_pool,
     } else {
       mutex_enter(block_mutex);
 
-      if (buf_flush_ready_for_replace(bpage)) {
-        freed = buf_LRU_free_page(bpage, true);
-        if (freed && !buf_is_in_ghost_queue(buf_pool, bpage)) {
-          buf_add_to_ghost_queue(buf_pool, bpage);
-          printf("Added page %u to ghost queue\n", bpage->id.page_no());
+      if (bpage->access_time == std::chrono::steady_clock::time_point{}) {
+        if (buf_flush_ready_for_replace(bpage)) {
+          freed = buf_LRU_free_page(bpage, true);
+          if (freed && !buf_is_in_ghost_queue(buf_pool, bpage)) {
+            buf_add_to_ghost_queue(buf_pool, bpage);
+            printf("Evicted page %u to ghost queue\n", bpage->id.page_no());
+          }
         }
+      } else {
+        buf_page_make_young_no_mutex(bpage);
+        bpage->access_time = std::chrono::steady_clock::time_point{};
+        // printf("Promoted page %u to \"main\" queue\n", bpage->id.page_no());
       }
 
       if (!freed) {
